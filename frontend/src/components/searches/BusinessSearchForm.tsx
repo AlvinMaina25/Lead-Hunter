@@ -271,7 +271,6 @@ export function BusinessSearchForm({ onSearchComplete }: BusinessSearchFormProps
               onChange={(e) => update('onlyWithoutWebsite', e.target.checked)}
               disabled={isSubmitting}
               className="h-4 w-4 rounded border-surface-border accent-ink"
-              aria-describedby="search-only-without-website-hint"
               {...a11y('onlyWithoutWebsite', 'search-only-without-website-hint')}
             />
             No website
