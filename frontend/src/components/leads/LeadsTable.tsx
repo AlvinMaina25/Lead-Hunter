@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Mail, MessageCircle, Phone, Share2, Users, X } from 'lucide-react';
 import { Column, DataTable } from '../ui/DataTable';
@@ -12,6 +12,7 @@ import { NameCell } from '../ui/NameCell';
 import { RowMenu } from '../ui/RowMenu';
 import { ScoreMeter } from '../ui/ScoreMeter';
 import { scoreBusinessLead } from '../../lib/api';
+import { DEFAULT_LEADS_VIEW_STATE, loadLeadsViewState, saveLeadsViewState } from '../../lib/leadsViewState';
 import type { Lead, ScoringFactor } from '../../types';
 
 const PAGE_SIZE = 10;
@@ -186,13 +187,17 @@ interface LeadsTableProps {
 }
 
 export function LeadsTable({ leads, isLoading, compact = false, compactLimit = 5 }: LeadsTableProps) {
-  const [search, setSearch] = useState('');
-  const [priorityFilter, setPriorityFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [contactFilter, setContactFilter] = useState('all');
-  const [sortKey, setSortKey] = useState<string>('created_at');
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
-  const [page, setPage] = useState(1);
+  // The full table (not the dashboard's compact list) restores its last
+  // view, so coming back from a lead's detail page keeps the same page,
+  // filters and sort instead of resetting to page 1.
+  const [initialView] = useState(() => (compact ? DEFAULT_LEADS_VIEW_STATE : loadLeadsViewState()));
+  const [search, setSearch] = useState(initialView.search);
+  const [priorityFilter, setPriorityFilter] = useState(initialView.priorityFilter);
+  const [statusFilter, setStatusFilter] = useState(initialView.statusFilter);
+  const [contactFilter, setContactFilter] = useState(initialView.contactFilter);
+  const [sortKey, setSortKey] = useState<string>(initialView.sortKey);
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>(initialView.sortDirection);
+  const [page, setPage] = useState(initialView.page);
 
   // Phase 12: local, optimistic results of "(Re)score" clicks, merged
   // over `leads` until the next refetch -- mirrors the `overrides`
@@ -286,6 +291,13 @@ export function LeadsTable({ leads, isLoading, compact = false, compactLimit = 5
   const pageRows = compact
     ? filtered.slice(0, compactLimit)
     : filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
+  // Save the clamped page (what the user actually sees), but not while
+  // loading: with no rows yet, the page would clamp to 1 and overwrite it.
+  useEffect(() => {
+    if (compact || isLoading) return;
+    saveLeadsViewState({ search, priorityFilter, statusFilter, contactFilter, sortKey, sortDirection, page: currentPage });
+  }, [compact, isLoading, search, priorityFilter, statusFilter, contactFilter, sortKey, sortDirection, currentPage]);
 
   function handleSort(key: string) {
     if (sortKey === key) {

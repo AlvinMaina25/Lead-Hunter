@@ -35,6 +35,41 @@ const googlePlaces = require('./googlePlaces');
 const { ValidationError, validateSearchConfiguration } = require('./validation');
 const { normalizePlace } = require('./normalize');
 
+// How many places are written to the database at once. Each place costs
+// 2-3 queries, and the database is remote, so storing 50 places one by
+// one was ~100+ sequential round trips. 8 stays under the pool's max of
+// 10 connections.
+const STORE_CONCURRENCY = 8;
+
+/**
+ * Like Promise.all(items.map(fn)) but with at most `limit` running at
+ * once. Results keep the input order. After the first failure no new
+ * items are started, and that first error is thrown.
+ */
+async function mapWithConcurrency(items, limit, fn) {
+  const results = new Array(items.length);
+  let next = 0;
+  let failure = null;
+
+  async function worker() {
+    while (failure === null) {
+      const index = next;
+      next += 1;
+      if (index >= items.length) return;
+      try {
+        results[index] = await fn(items[index], index);
+      } catch (err) {
+        failure = { err };
+        return;
+      }
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  if (failure) throw failure.err;
+  return results;
+}
+
 const { GooglePlacesError, PAGE_SIZE, buildSearchQuery, distanceMeters, resolveLocationCenter } = googlePlaces;
 
 // The columns of `searches` the API returns (GET /api/searches and the
@@ -233,9 +268,23 @@ async function insertSearch(pool, config, searchQuery) {
  * @throws {GooglePlacesError}
  */
 async function findPlaces(config, searchQuery, textSearch) {
+  // "Only businesses with no website" is applied after Google answers, and
+  // most places do have a website, so ask Google for as many as it allows
+  // to have a fair chance of filling max_results.
+  const onlyWithoutWebsite = config.only_without_website === true;
+  const withoutWebsite = (list) => list.filter((place) => !(place && place.websiteUri));
+
   if (config.radius_meters === null) {
-    const places = await textSearch(searchQuery, { maxResultCount: config.max_results });
-    return { places, placesReturned: places.length, excludedByRadius: 0 };
+    const found = await textSearch(searchQuery, {
+      maxResultCount: onlyWithoutWebsite ? googlePlaces.MAX_RESULT_COUNT : config.max_results,
+    });
+    const places = onlyWithoutWebsite ? withoutWebsite(found) : found;
+    return {
+      places,
+      placesReturned: found.length,
+      excludedByRadius: 0,
+      excludedWithWebsite: found.length - places.length,
+    };
   }
 
   const center = await resolveLocationCenter(config.location, textSearch);
@@ -250,11 +299,13 @@ async function findPlaces(config, searchQuery, textSearch) {
   const found = await textSearch(searchQuery, {
     // At least a full page, since some results will be filtered out by
     // the radius; never more than the caller asked for beyond that.
-    maxResultCount: Math.max(PAGE_SIZE, config.max_results),
+    maxResultCount: onlyWithoutWebsite
+      ? googlePlaces.MAX_RESULT_COUNT
+      : Math.max(PAGE_SIZE, config.max_results),
     locationBias: { ...center, radius: config.radius_meters },
   });
 
-  const places = found.filter((place) => {
+  const inRadius = found.filter((place) => {
     const point = place && place.location;
     return (
       point &&
@@ -264,7 +315,14 @@ async function findPlaces(config, searchQuery, textSearch) {
     );
   });
 
-  return { places, placesReturned: found.length, excludedByRadius: found.length - places.length };
+  const places = onlyWithoutWebsite ? withoutWebsite(inRadius) : inRadius;
+
+  return {
+    places,
+    placesReturned: found.length,
+    excludedByRadius: found.length - inRadius.length,
+    excludedWithWebsite: inRadius.length - places.length,
+  };
 }
 
 /**
@@ -320,18 +378,20 @@ function createSearchHandler({ pool, textSearch = googlePlaces.textSearch, start
     }
 
     try {
-      const { places, placesReturned, excludedByRadius } = await findPlaces(config, searchQuery, textSearch);
+      const { places, placesReturned, excludedByRadius, excludedWithWebsite } = await findPlaces(config, searchQuery, textSearch);
 
-      const businesses = [];
-      let rank = 0;
-
+      // Decide what to keep (and each result's rank) first, in Google's
+      // order, then store them several at a time.
+      const toStore = [];
       for (const place of places) {
-        if (rank >= config.max_results) break;
+        if (toStore.length >= config.max_results) break;
 
         const normalized = normalizePlace(place);
         if (!normalized) continue; // missing Google place id or name — can't be stored safely
-        rank += 1;
+        toStore.push(normalized);
+      }
 
+      const businesses = await mapWithConcurrency(toStore, STORE_CONCURRENCY, async (normalized, index) => {
         const { business, isNew } = await upsertBusiness(pool, normalized);
 
         await pool.query(
@@ -340,11 +400,11 @@ function createSearchHandler({ pool, textSearch = googlePlaces.textSearch, start
             VALUES ($1, $2, $3)
             ON CONFLICT (search_id, business_id) DO NOTHING
           `,
-          [searchRow.id, business.id, rank]
+          [searchRow.id, business.id, index + 1]
         );
 
-        businesses.push({ ...business, isNew });
-      }
+        return { ...business, isNew };
+      });
 
       const { rows: completedRows } = await pool.query(
         `
@@ -382,6 +442,7 @@ function createSearchHandler({ pool, textSearch = googlePlaces.textSearch, start
         summary: {
           places_returned: placesReturned,
           excluded_outside_radius: excludedByRadius,
+          ...(config.only_without_website ? { excluded_with_website: excludedWithWebsite ?? 0 } : {}),
           results_count: businesses.length,
         },
       });

@@ -61,12 +61,47 @@ export function useDashboardMetrics(): AsyncState<DashboardMetrics> {
   return state;
 }
 
+// The leads list comes from a remote database, so a fresh request on every
+// click on "Leads" made the page feel slow. The last list that loaded is
+// kept here: the page shows it immediately and refreshes it in the
+// background. It is also requested once as the app opens (prefetchLeads),
+// so even the first click is usually instant.
+let leadsCache: Lead[] | null = null;
+let leadsInFlight: Promise<Lead[]> | null = null;
+
+/** `force` always starts a new request (used after the data was changed, e.g. scoring). */
+function loadLeads(force = false): Promise<Lead[]> {
+  if (force || !leadsInFlight) {
+    const request: Promise<Lead[]> = fetchLeads()
+      .then((data) => {
+        leadsCache = data;
+        return data;
+      })
+      .finally(() => {
+        if (leadsInFlight === request) leadsInFlight = null;
+      });
+    leadsInFlight = request;
+  }
+  return leadsInFlight;
+}
+
+/** Starts loading the leads list in the background. Never throws; errors surface when the Leads page itself loads. */
+export function prefetchLeads(): void {
+  loadLeads().catch(() => {});
+}
+
+/** Forgets the cached leads list (used by tests). */
+export function clearLeadsCache(): void {
+  leadsCache = null;
+  leadsInFlight = null;
+}
+
 export function useLeads(): AsyncState<Lead[]> & { refetch: () => void } {
   const { isDemoMode } = useDemoData();
   const [refreshIndex, setRefreshIndex] = useState(0);
   const [state, setState] = useState<AsyncState<Lead[]>>({
-    data: [],
-    isLoading: true,
+    data: !isDemoMode && leadsCache ? leadsCache : [],
+    isLoading: isDemoMode || leadsCache === null,
     isDemo: isDemoMode,
     isError: false,
     error: null,
@@ -74,14 +109,17 @@ export function useLeads(): AsyncState<Lead[]> & { refetch: () => void } {
 
   useEffect(() => {
     let cancelled = false;
-    setState((s) => ({ ...s, isLoading: true, isError: false, error: null }));
+    // With a cached list there is something to show, so refresh quietly
+    // instead of replacing it with a loading state.
+    const hasCache = !isDemoMode && leadsCache !== null;
+    setState((s) => ({ ...s, isLoading: !hasCache, isError: false, error: null }));
 
     if (isDemoMode) {
       setState({ data: DEMO_LEADS, isLoading: false, isDemo: true, isError: false, error: null });
       return;
     }
 
-    fetchLeads()
+    loadLeads(refreshIndex > 0)
       .then((data) => {
         if (!cancelled) setState({ data, isLoading: false, isDemo: false, isError: false, error: null });
       })

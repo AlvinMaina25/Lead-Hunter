@@ -89,6 +89,7 @@ test('config: a full valid configuration is accepted and normalized', () => {
     radius_meters: 5000,
     max_results: 10,
     analysis_options: { website_analysis: true, ai_analysis: false },
+    only_without_website: false,
   });
 });
 
@@ -100,7 +101,15 @@ test('config: a legacy { category, location } body is still valid and gets the d
     radius_meters: null,
     max_results: DEFAULT_MAX_RESULTS,
     analysis_options: { website_analysis: false, ai_analysis: false },
+    only_without_website: false,
   });
+});
+
+test('config: only_without_website defaults to false, accepts booleans, rejects everything else', () => {
+  assert.equal(validateSearchConfiguration(BASE).only_without_website, false);
+  assert.equal(validateSearchConfiguration({ ...BASE, only_without_website: true }).only_without_website, true);
+  assertRejects({ ...BASE, only_without_website: 'true' }, /"only_without_website" must be true or false/);
+  assertRejects({ ...BASE, only_without_website: null }, /"only_without_website" must be true or false/);
 });
 
 test('config: the limits are the Google Places Text Search (New) limits', () => {

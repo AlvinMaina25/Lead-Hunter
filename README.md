@@ -278,5 +278,3 @@ npm start                       # serves the API + built frontend from one Expre
   safe, specific messages (e.g. "Google Places API rate limit reached...") and never forwards
   Google's raw response body or the API key.
 
-#   L e a d - H u n t e r  
- 

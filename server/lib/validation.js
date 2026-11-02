@@ -134,6 +134,18 @@ function validateAnalysisOptions(value) {
 }
 
 /**
+ * only_without_website: omitted -> false. Otherwise a real boolean.
+ * When true, the search keeps only businesses Google lists with no website.
+ */
+function validateOnlyWithoutWebsite(value) {
+  if (value === undefined) return false;
+  if (typeof value !== 'boolean') {
+    throw new ValidationError('"only_without_website" must be true or false.');
+  }
+  return value;
+}
+
+/**
  * Phase 20: validates and normalizes a manual search configuration.
  * A superset of validateSearchInput (category / location / keyword keep
  * their existing rules), so a Phase 7-era body such as
@@ -160,6 +172,7 @@ function validateSearchConfiguration(body) {
     radius_meters: validateRadius(body.radius_meters),
     max_results: validateMaxResults(body.max_results),
     analysis_options: validateAnalysisOptions(body.analysis_options),
+    only_without_website: validateOnlyWithoutWebsite(body.only_without_website),
   };
 }
 

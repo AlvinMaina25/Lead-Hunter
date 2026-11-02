@@ -437,6 +437,8 @@ export interface SearchConfiguration {
   /** Integer 1..20. */
   max_results?: number;
   analysis_options?: Partial<SearchAnalysisOptions>;
+  /** true = keep only businesses with no website. Omitted = false. */
+  only_without_website?: boolean;
 }
 
 /**
@@ -461,6 +463,8 @@ export interface SearchSummary {
   places_returned: number;
   /** Places dropped because they were outside the requested radius (0 when no radius). */
   excluded_outside_radius: number;
+  /** Places dropped because they have a website (only when "no website only" was on; otherwise 0). */
+  excluded_with_website?: number;
   /** Businesses actually kept and linked to the search (after the radius filter and max_results cap). */
   results_count: number;
 }

@@ -261,6 +261,28 @@ export function BusinessSearchForm({ onSearchComplete }: BusinessSearchFormProps
           </div>
         </div>
 
+        <div className="mt-4 rounded border border-surface-border px-3 py-3">
+          <label htmlFor="search-only-without-website" className="inline-flex items-center gap-2 text-sm text-ink">
+            <input
+              id="search-only-without-website"
+              ref={setInputRef('onlyWithoutWebsite')}
+              type="checkbox"
+              checked={values.onlyWithoutWebsite}
+              onChange={(e) => update('onlyWithoutWebsite', e.target.checked)}
+              disabled={isSubmitting}
+              className="h-4 w-4 rounded border-surface-border accent-ink"
+              aria-describedby="search-only-without-website-hint"
+              {...a11y('onlyWithoutWebsite', 'search-only-without-website-hint')}
+            />
+            No website
+          </label>
+          <p id="search-only-without-website-hint" className={hintClass}>
+            Only return businesses that have no website listed on Google. Searches the full 50 Google results, then keeps
+            the ones without a website, so you may get fewer than the maximum.
+          </p>
+          {errors.onlyWithoutWebsite && <p className={errorClass}>{errors.onlyWithoutWebsite}</p>}
+        </div>
+
         <fieldset className="mt-4 rounded border border-surface-border px-3 pb-3 pt-1" disabled={isSubmitting}>
           <legend className="px-1 text-xs font-medium text-ink-600">Analysis options</legend>
           <p id="search-analysis-hint" className="mb-2 text-xs text-ink-400">
@@ -387,13 +409,18 @@ function SearchResultSummary({ result }: { result: RunSearchResponse }) {
         {summary && <Stat label="Places returned" value={summary.places_returned} />}
         <Stat label="Results" value={resultsCount} />
         {summary && radiusMeters !== null && <Stat label="Excluded by radius" value={summary.excluded_outside_radius} />}
+        {summary && (summary.excluded_with_website ?? 0) > 0 && (
+          <Stat label="Excluded (has website)" value={summary.excluded_with_website ?? 0} />
+        )}
       </dl>
 
       {businesses.length === 0 ? (
         <div className="mt-3 rounded border border-dashed border-surface-border bg-white px-4 py-5 text-center">
           <p className="text-sm font-semibold text-ink">No businesses found</p>
           <p className="mx-auto mt-1 max-w-md text-sm text-ink-400">
-            {summary && summary.excluded_outside_radius > 0
+            {summary && (summary.excluded_with_website ?? 0) > 0 && summary.excluded_outside_radius === 0
+              ? `Google returned ${summary.places_returned} ${summary.places_returned === 1 ? 'place' : 'places'}, but all of them have a website. Try a different category or location.`
+              : summary && summary.excluded_outside_radius > 0
               ? `Google returned ${summary.places_returned} ${summary.places_returned === 1 ? 'place' : 'places'}, and ${summary.excluded_outside_radius} of them ${summary.excluded_outside_radius === 1 ? 'was' : 'were'} outside the radius. Try a larger radius or search without one.`
               : 'This search returned no businesses. Try a different category, location or keyword, or widen the radius.'}
           </p>

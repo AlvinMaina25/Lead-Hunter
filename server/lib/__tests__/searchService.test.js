@@ -339,6 +339,15 @@ test('POST /api/searches: without a radius, max_results is what Google is asked 
   assert.deepEqual(textSearch.calls, [{ query: 'barbers in Nairobi', options: { maxResultCount: 3 } }]);
 });
 
+test('POST /api/searches: stores places concurrently but keeps Google order and ranks', async () => {
+  const places = Array.from({ length: 12 }, (_, i) => place(`p${i}`, `Barber ${i}`));
+  const textSearch = makeFakeTextSearch({ places });
+  const { res, pool } = await post({ ...BASE, max_results: 12 }, { textSearch });
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(res.body.businesses.map((b) => b.name), places.map((p) => p.displayName.text));
+  assert.equal(res.body.search.results_count, 12);
+});
+
 test('POST /api/searches: max_results of 50 is accepted and passed through to Google', async () => {
   const places = Array.from({ length: 50 }, (_, i) => place(`p${i}`, `Barber ${i}`));
   const textSearch = makeFakeTextSearch({ places });
@@ -385,6 +394,44 @@ test('POST /api/searches: a radius resolves the location centre once, biases the
   assert.deepEqual(res.body.businesses.map((b) => b.name), ['Near Barbers', 'Edge Barbers']);
   assert.deepEqual(res.body.summary, { places_returned: 4, excluded_outside_radius: 2, results_count: 2 });
   assert.equal(pool.searches.get('search-1').radius_meters, 5000);
+});
+
+test('POST /api/searches: only_without_website asks Google for 50, keeps only places with no websiteUri, and reports how many were excluded', async () => {
+  const textSearch = makeFakeTextSearch({
+    places: [
+      place('a', 'Has Site', 0.001, { websiteUri: 'https://a.example.com' }),
+      place('b', 'No Site One', 0.002),
+      place('c', 'Has Site Too', 0.003, { websiteUri: 'https://c.example.com' }),
+      place('d', 'No Site Two', 0.004),
+    ],
+  });
+  const { res } = await post({ ...BASE, max_results: 5, only_without_website: true }, { textSearch });
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(textSearch.calls[0].options.maxResultCount, 50);
+  assert.deepEqual(res.body.businesses.map((b) => b.name), ['No Site One', 'No Site Two']);
+  assert.deepEqual(res.body.summary, {
+    places_returned: 4,
+    excluded_outside_radius: 0,
+    excluded_with_website: 2,
+    results_count: 2,
+  });
+});
+
+test('POST /api/searches: only_without_website combines with a radius and still honours max_results', async () => {
+  const textSearch = makeFakeTextSearch({
+    places: [
+      place('a', 'Near No Site', 0.001),
+      place('b', 'Near Has Site', 0.002, { websiteUri: 'https://b.example.com' }),
+      place('c', 'Far No Site', 0.1),
+      place('d', 'Near No Site Two', 0.003),
+    ],
+  });
+  const { res } = await post({ ...BASE, radius_meters: 5000, max_results: 1, only_without_website: true }, { textSearch });
+
+  assert.deepEqual(res.body.businesses.map((b) => b.name), ['Near No Site']);
+  assert.equal(res.body.summary.excluded_outside_radius, 1);
+  assert.equal(res.body.summary.excluded_with_website, 1);
 });
 
 test('POST /api/searches: with a radius, max_results still caps the kept list', async () => {

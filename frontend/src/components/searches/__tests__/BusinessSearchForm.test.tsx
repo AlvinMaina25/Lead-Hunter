@@ -202,6 +202,7 @@ describe('BusinessSearchForm — Search Configuration', () => {
         radius_meters: null,
         max_results: 20,
         analysis_options: { website_analysis: false, ai_analysis: false },
+        only_without_website: false,
       });
     });
 
@@ -347,6 +348,7 @@ describe('BusinessSearchForm — Search Configuration', () => {
         radius_meters: 5000,
         max_results: 10,
         analysis_options: { website_analysis: true, ai_analysis: false },
+        only_without_website: false,
       });
       expect(onSearchComplete).toHaveBeenCalledTimes(1);
     });

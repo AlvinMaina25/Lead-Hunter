@@ -32,6 +32,7 @@ describe('search form defaults', () => {
       maxResults: '20',
       websiteAnalysis: false,
       aiAnalysis: false,
+      onlyWithoutWebsite: false,
     });
     expect(DEFAULT_MAX_RESULTS).toBe(20);
   });
@@ -47,6 +48,7 @@ describe('validateSearchForm', () => {
         radius_meters: null,
         max_results: 20,
         analysis_options: { website_analysis: false, ai_analysis: false },
+        only_without_website: false,
       },
     });
   });
@@ -72,8 +74,14 @@ describe('validateSearchForm', () => {
         radius_meters: 5000,
         max_results: 10,
         analysis_options: { website_analysis: true, ai_analysis: true },
+        only_without_website: false,
       },
     });
+  });
+
+  it('sends only_without_website: true when the No website option is on', () => {
+    const validation = validateSearchForm(values({ onlyWithoutWebsite: true }));
+    expect(validation.ok && validation.config.only_without_website).toBe(true);
   });
 
   it('omits a blank keyword entirely', () => {

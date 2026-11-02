@@ -29,6 +29,7 @@ export interface SearchFormValues {
   maxResults: string;
   websiteAnalysis: boolean;
   aiAnalysis: boolean;
+  onlyWithoutWebsite: boolean;
 }
 
 export const DEFAULT_SEARCH_FORM_VALUES: SearchFormValues = {
@@ -39,6 +40,7 @@ export const DEFAULT_SEARCH_FORM_VALUES: SearchFormValues = {
   maxResults: String(DEFAULT_MAX_RESULTS),
   websiteAnalysis: false,
   aiAnalysis: false,
+  onlyWithoutWebsite: false,
 };
 
 export type SearchFormField = keyof SearchFormValues;
@@ -53,6 +55,7 @@ export const SEARCH_FORM_FIELD_ORDER: SearchFormField[] = [
   'maxResults',
   'websiteAnalysis',
   'aiAnalysis',
+  'onlyWithoutWebsite',
 ];
 
 /** A validated configuration, ready to send: every field the form controls is present. */
@@ -60,6 +63,7 @@ export interface ValidatedSearchConfiguration extends RunSearchInput {
   radius_meters: number | null;
   max_results: number;
   analysis_options: SearchAnalysisOptions;
+  only_without_website: boolean;
 }
 
 export type SearchFormValidation =
@@ -136,6 +140,8 @@ export function validateSearchForm(values: SearchFormValues): SearchFormValidati
   if (typeof values.websiteAnalysis !== 'boolean') errors.websiteAnalysis = 'Website analysis must be on or off.';
   if (typeof values.aiAnalysis !== 'boolean') errors.aiAnalysis = 'AI analysis must be on or off.';
 
+  if (typeof values.onlyWithoutWebsite !== 'boolean') errors.onlyWithoutWebsite = 'No website filter must be on or off.';
+
   if (Object.keys(errors).length > 0) return { ok: false, errors };
 
   const config: ValidatedSearchConfiguration = {
@@ -147,6 +153,7 @@ export function validateSearchForm(values: SearchFormValues): SearchFormValidati
       website_analysis: values.websiteAnalysis,
       ai_analysis: values.aiAnalysis,
     },
+    only_without_website: values.onlyWithoutWebsite,
   };
   if (keyword.value) config.keyword = keyword.value;
   return { ok: true, config };
