@@ -1,0 +1,22 @@
+# Environment variables / secrets — never commit real values
+.env
+.env.*
+!.env.example
+
+# Dependencies
+node_modules/
+frontend/node_modules/
+
+# Build output
+frontend/dist/
+frontend/tsconfig.app.tsbuildinfo
+frontend/tsconfig.node.tsbuildinfo
+
+# Logs
+npm-debug.log*
+*.log
+
+# OS/editor
+.DS_Store
+# Local development patches
+*.patch

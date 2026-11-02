@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <style>
+      .tile-bg { fill: #101826; }
+      .tile-border { fill: none; stroke: transparent; stroke-width: 0; }
+      @media (prefers-color-scheme: dark) {
+        .tile-border { stroke: #3A4863; stroke-width: 14; }
+      }
+      .gold-stroke { stroke: #C6862E; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+      .gold-fill { fill: #C6862E; }
+      .gold-highlight { fill: #F5E3C4; }
+    </style>
+  </defs>
+  <!-- Background rounded tile -->
+  <rect class="tile-bg" x="7" y="7" width="498" height="498" rx="112" ry="112" />
+  <rect class="tile-border" x="7" y="7" width="498" height="498" rx="112" ry="112" />
+
+  <!-- Radar Symbol (Centered at 256, 256) -->
+  <!-- Outer circle range ring (diameter ~334px with stroke, ~65% of tile) -->
+  <circle cx="256" cy="256" r="148" class="gold-stroke" stroke-width="38" />
+
+  <!-- Concentric inner arc (radius 82, sweeping across top-right quadrant) -->
+  <path d="M 180 220 A 82 82 0 0 1 314 200" class="gold-stroke" stroke-width="38" />
+
+  <!-- Center scanner hub -->
+  <circle cx="256" cy="256" r="26" class="gold-fill" />
+
+  <!-- Sweep line at 38 degrees towards top-right -->
+  <!-- 256 + 148 * cos(38 deg) = 256 + 116.6 = 372.6 -->
+  <!-- 256 - 148 * sin(38 deg) = 256 - 91.1 = 164.9 -->
+  <line x1="256" y1="256" x2="372" y2="165" class="gold-stroke" stroke-width="38" />
+
+  <!-- Target Lead Dot ("the lead" blip detected along the sweep line) -->
+  <circle cx="328" cy="200" r="30" class="gold-fill" />
+  <circle cx="328" cy="200" r="13" class="gold-highlight" />
+</svg>
